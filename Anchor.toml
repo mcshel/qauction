@@ -1,7 +1,8 @@
 [features]
 seeds = false
+
 [programs.localnet]
-qauction = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+qauction = "5EYANgeHu9DDa3WHc2td29eguhEAJ7SZFAXhWuXam2Ve"
 
 [registry]
 url = "https://anchor.projectserum.com"
