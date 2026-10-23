@@ -54,7 +54,7 @@ pub mod qauction {
         auction.name = name;
         auction.amount = price;
         auction.amount_increment = price_increment;
-        auction.lamports = ctx.accounts.authority_token_account.to_account_info().lamports();
+        auction.lamports = ctx.accounts.proceeds.to_account_info().lamports();
         auction.start_timestamp = start_timestamp;
         auction.end_timestamp = end_timestamp;
         auction.leader = ctx.accounts.authority.key();

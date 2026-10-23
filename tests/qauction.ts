@@ -38,8 +38,8 @@ describe('Healthy auction lifecycle', async () => {
         await provider.connection.confirmTransaction(airdropSignature2);
         
         
-        //proceedsMint = spl.NATIVE_MINT;
-        proceedsMint = await spl.createMint(provider.connection, authorityKeypair, authorityKeypair.publicKey, null, 6);
+        proceedsMint = spl.NATIVE_MINT;
+        //proceedsMint = await spl.createMint(provider.connection, authorityKeypair, authorityKeypair.publicKey, null, 6);
         
         let bump = null;
         [adminSettingsAccount, bump] = await anchor.web3.PublicKey.findProgramAddress([Buffer.from("admin")], program.programId);
@@ -137,9 +137,27 @@ describe('Healthy auction lifecycle', async () => {
         const airdropSignature = await provider.connection.requestAirdrop(bidderKeypair.publicKey, 1e9);
         await provider.connection.confirmTransaction(airdropSignature);
         
+        const tx = new anchor.web3.Transaction();
+        
         let bidderTokenAccount;
         if (proceedsMint == spl.NATIVE_MINT) {
-            bidderTokenAccount = await spl.createWrappedNativeAccount(provider.connection, bidderKeypair, bidderKeypair.publicKey, amount);
+            //bidderTokenAccount = await spl.createWrappedNativeAccount(provider.connection, bidderKeypair, bidderKeypair.publicKey, amount);
+            
+            bidderTokenAccount = await spl.getAssociatedTokenAddress(proceedsMint, bidderKeypair.publicKey);
+            
+            const acc = await spl.createAssociatedTokenAccountInstruction(bidderKeypair.publicKey, bidderTokenAccount, bidderKeypair.publicKey, proceedsMint);
+            const transfer = anchor.web3.SystemProgram.transfer({
+                fromPubkey: bidderKeypair.publicKey,
+                toPubkey: bidderTokenAccount,
+                lamports: amount, // amount is the bid amount user selected in the UI
+            });
+            const sync = spl.createSyncNativeInstruction(bidderTokenAccount, spl.TOKEN_PROGRAM_ID);
+            tx.add(acc, transfer, sync);
+            
+//             const sigg = await anchor.web3.sendAndConfirmTransaction(provider.connection, txx, [bidderKeypair], {skipPreflight: true});
+//             
+//             console.log(sigg);
+            
         } else {
             bidderTokenAccount = await spl.createAssociatedTokenAccount(provider.connection, bidderKeypair, proceedsMint, bidderKeypair.publicKey);
             const mintSignature = await spl.mintTo(provider.connection, authorityKeypair, proceedsMint, bidderTokenAccount, authorityKeypair, amount);
@@ -147,6 +165,8 @@ describe('Healthy auction lifecycle', async () => {
         }
         
         let auctionAccountData = await program.account.auction.fetch(auctionAccount);
+        
+        /*
         const tx = await program.transaction.bid(new anchor.BN(amount), {
             accounts: {
                 auction: auctionAccount,
@@ -160,6 +180,25 @@ describe('Healthy auction lifecycle', async () => {
                 systemProgram: anchor.web3.SystemProgram.programId,
             },
         });
+        const signature = await anchor.web3.sendAndConfirmTransaction(provider.connection, tx, [bidderKeypair], {skipPreflight: true});
+        console.log(`\tBid transaction: ${signature}`);
+        */
+        
+        const ix = await program.instruction.bid(new anchor.BN(amount), {
+            accounts: {
+                auction: auctionAccount,
+                proceeds: proceedsAccount,
+                proceedsMint: proceedsMint,
+                leaderTokenAccount: auctionAccountData.leaderTokenAccount,
+                leader: auctionAccountData.leader,
+                authorityTokenAccount: bidderTokenAccount,
+                authority: bidderKeypair.publicKey,
+                tokenProgram: spl.TOKEN_PROGRAM_ID,
+                systemProgram: anchor.web3.SystemProgram.programId,
+            },
+        });
+        tx.add(ix);
+        
         const signature = await anchor.web3.sendAndConfirmTransaction(provider.connection, tx, [bidderKeypair], {skipPreflight: true});
         console.log(`\tBid transaction: ${signature}`);
         
@@ -272,6 +311,5 @@ describe('Healthy auction lifecycle', async () => {
         const signature = await anchor.web3.sendAndConfirmTransaction(provider.connection, tx, [keypair], {skipPreflight: true});
         console.log(`\tClose transaction: ${signature}`);
     });
-    
     
 });
